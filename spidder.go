@@ -26,8 +26,10 @@ var(
 
 	// 图片url的通道
 	chanImgUrl = make(chan string)
-	// 网页url的通道
+	// 网页url的通道(供图片解析)
 	chanUrl = make(chan string)
+	// 所有网页
+	urls []string
 )
 
 
@@ -84,7 +86,10 @@ func main() {
 
 	waitGroup.Add(1)
 	go func() {
-		getUrl(TARGET_URL)
+		urls = append(urls, TARGET_URL)
+		for url:=urls[0]; len(urls)>0;{
+			getUrl(url)
+		}
 		fmt.Println("解析所有url结束！")
 
 		// 解析完成，释放chanUrl
@@ -105,10 +110,13 @@ func main() {
 	}()
 
 	// 解析目标url
-	chanUrl <- TARGET_URL
+	 chanUrl <- TARGET_URL
 
-	waitGroup.Add(1)
-	go readChanUrl(chanImgUrl)
+	 // 开启多个下载线程
+	 for i:=0; i<5; i++ {
+		 waitGroup.Add(1)
+		 go readChanUrl(chanImgUrl)
+	 }
 
 	waitGroup.Wait()
 
@@ -130,7 +138,6 @@ func getPictureUrl(url string) {
 
 	length := len(html)
 
-	fmt.Println("开始解析：" + url)
 	for index:=0; index<length; index++  {
 		if string(html[index]) == "<" && index<length-4{
 			// 解析img，截取<img >，并获取其中的url
@@ -174,6 +181,7 @@ func getUrl(url string) {
 						aUrl := parseUrlFromATag(aTag)
 						if aUrl != "" {
 							chanUrl <- aUrl
+							urls = append(urls, aUrl)
 							index += j-index
 						}
 						break
@@ -264,11 +272,10 @@ func downLoad(url, fileName string) {
 		fmt.Println(err)
 	} else {
 		CUR_NUM ++
+		fmt.Printf("当前获取图片数：%d\n", CUR_NUM)
 		if CUR_NUM == MAX_NUM {
 			fmt.Println("获取所有图片完成!")
 			os.Exit(1)
-		} else if CUR_NUM%100 == 0 {
-			fmt.Printf("当前获取图片数：%d\n", CUR_NUM)
 		}
 	}
 }
