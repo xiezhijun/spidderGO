@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-var(
+var (
 	// 默认爬取网页 url
 	TARGET_URL = "https://www.zhihu.com/"
 
@@ -27,21 +27,20 @@ var(
 	// 图片url的通道
 	chanImgUrl = make(chan string)
 	// 网页url的通道(供图片解析)
-	chanUrl = make(chan string)
+	chanUrl = make(chan string, 10)
 	// 所有网页
 	urls []string
 )
-
 
 func main() {
 	var url, dirPath string
 
 	fmt.Printf("请输入链接：(默认%s)\n", TARGET_URL)
-	inputUrl:
+inputUrl:
 	fmt.Scanln(&url)
 	if url != "" {
-		_,err :=http.Get(url)
-		if err!=nil {
+		_, err := http.Get(url)
+		if err != nil {
 			fmt.Println("输入链接无法访问，请重新输入！")
 			goto inputUrl
 		} else {
@@ -52,14 +51,14 @@ func main() {
 	fmt.Printf("请输入存储图片地址：（默认%s）\n", DIR_PATH)
 	fmt.Scanln(&dirPath)
 	if dirPath != "" {
-		_,err := os.Open(dirPath)
+		_, err := os.Open(dirPath)
 		if err != nil {
 			err = os.MkdirAll(dirPath, os.ModePerm)
 			if err != nil {
 				fmt.Println("存储地址错误，即将使用默认配置！")
 			} else {
 				DIR_PATH = dirPath
-				fmt.Println("创建文件夹成功：" + dirPath +" 成功！")
+				fmt.Println("创建文件夹成功：" + dirPath + " 成功！")
 			}
 		}
 	}
@@ -71,23 +70,24 @@ func main() {
 		MAX_NUM = num
 	}
 
-	_,err := os.Open(DIR_PATH)
+	_, err := os.Open(DIR_PATH)
 	if err != nil {
-		err =os.MkdirAll(DIR_PATH, os.ModePerm)
+		err = os.MkdirAll(DIR_PATH, os.ModePerm)
 		if err == nil {
-			fmt.Println("创建文件夹：" + DIR_PATH +" 成功！")
+			fmt.Println("创建文件夹：" + DIR_PATH + " 成功！")
 		} else {
 			fmt.Println("创建文件夹失败：" + err.Error())
 			os.Exit(1)
 		}
 	}
 
-
+	// 解析目标url
+	chanUrl <- TARGET_URL
 
 	waitGroup.Add(1)
 	go func() {
 		urls = append(urls, TARGET_URL)
-		for url:=urls[0]; len(urls)>0;{
+		for url := urls[0]; len(urls) > 0; {
 			getUrl(url)
 		}
 		fmt.Println("解析所有url结束！")
@@ -109,14 +109,11 @@ func main() {
 		waitGroup.Done()
 	}()
 
-	// 解析目标url
-	 chanUrl <- TARGET_URL
-
-	 // 开启多个下载线程
-	 for i:=0; i<5; i++ {
-		 waitGroup.Add(1)
-		 go readChanUrl(chanImgUrl)
-	 }
+	// 开启多个下载线程
+	for i := 0; i < 5; i++ {
+		waitGroup.Add(1)
+		go readChanUrl(chanImgUrl)
+	}
 
 	waitGroup.Wait()
 
@@ -126,7 +123,7 @@ func main() {
 
 /*
  根据传入的url 地址，解析出该网页上所有的图片链接
- */
+*/
 func getPictureUrl(url string) {
 	resp, err := http.Get(url)
 	if err != nil {
@@ -138,17 +135,17 @@ func getPictureUrl(url string) {
 
 	length := len(html)
 
-	for index:=0; index<length; index++  {
-		if string(html[index]) == "<" && index<length-4{
+	for index := 0; index < length; index++ {
+		if string(html[index]) == "<" && index < length-4 {
 			// 解析img，截取<img >，并获取其中的url
 			if string(html[index+1]) == "i" && string(html[index+2]) == "m" && string(html[index+3]) == "g" {
-				for j:=index+3; j<length; j++  {
+				for j := index + 3; j < length; j++ {
 					if string(html[j]) == ">" {
-						imgTag := string(html[index:j+1])
+						imgTag := string(html[index : j+1])
 						imgUrl := parseImgUrlFromImgTag(imgTag)
 						if imgUrl != "" {
 							chanImgUrl <- imgUrl
-							index += j-index
+							index += j - index
 						}
 						break
 					}
@@ -160,7 +157,7 @@ func getPictureUrl(url string) {
 
 /*
  根据传入的url 地址，解析出该网页上所有的图片链接
- */
+*/
 func getUrl(url string) {
 	resp, err := http.Get(url)
 	if err != nil {
@@ -172,17 +169,17 @@ func getUrl(url string) {
 
 	length := len(html)
 
-	for index:=0; index<length; index++  {
-		if string(html[index]) == "<" && index<length-4{
+	for index := 0; index < length; index++ {
+		if string(html[index]) == "<" && index < length-4 {
 			if string(html[index+1]) == "a" { // 解析<a>
-				for j:=index+1; j<length; j++ {
+				for j := index + 1; j < length; j++ {
 					if string(html[j]) == ">" {
-						aTag := string(html[index:j+1])
+						aTag := string(html[index : j+1])
 						aUrl := parseUrlFromATag(aTag)
 						if aUrl != "" {
 							chanUrl <- aUrl
 							urls = append(urls, aUrl)
-							index += j-index
+							index += j - index
 						}
 						break
 					}
@@ -194,12 +191,12 @@ func getUrl(url string) {
 
 /*
  解析<img /> 标签中的图片链接
- */
+*/
 func parseImgUrlFromImgTag(imgTag string) string {
 	var result string
 
 	slice := strings.Split(imgTag, "\"")
-	for _, v := range  slice {
+	for _, v := range slice {
 		if strings.HasPrefix(v, "http") {
 			result = v
 			break
@@ -211,12 +208,12 @@ func parseImgUrlFromImgTag(imgTag string) string {
 
 /*
  解析<a /> 标签中的图片链接
- */
+*/
 func parseUrlFromATag(aTag string) string {
 	var result string
 
 	slice := strings.Split(aTag, "\"")
-	for _, v := range  slice {
+	for _, v := range slice {
 		if strings.HasPrefix(v, "http") {
 			result = v
 			break
@@ -226,10 +223,9 @@ func parseUrlFromATag(aTag string) string {
 	return result
 }
 
-
 /*
  从chan 中不断读取并下载
- */
+*/
 func readChanUrl(chanUrl chan string) {
 	for url := range chanImgUrl {
 		if url == "" {
@@ -244,9 +240,9 @@ func readChanUrl(chanUrl chan string) {
 		if prefix == "" {
 			prefix = string(rand.Int())
 		}*/
-		prefix = strconv.FormatInt(time.Now().UnixNano(),10)
+		prefix = strconv.FormatInt(time.Now().UnixNano(), 10)
 
-		fileName := DIR_PATH + "/" +prefix +".jpg"
+		fileName := DIR_PATH + "/" + prefix + ".jpg"
 
 		downLoad(url, fileName)
 	}
@@ -256,22 +252,22 @@ func readChanUrl(chanUrl chan string) {
 
 /*
  下载
- */
+*/
 func downLoad(url, fileName string) {
-	res,err := http.Get(url)
+	res, err := http.Get(url)
 	if err != nil {
 		fmt.Println("【ERROR】" + url)
 		return
 	}
 	defer res.Body.Close()
 
-	bytes,_ := ioutil.ReadAll(res.Body)
+	bytes, _ := ioutil.ReadAll(res.Body)
 	err = ioutil.WriteFile(fileName, bytes, 0644)
-	if err!=nil {
+	if err != nil {
 		fmt.Println("download file " + url + " error")
 		fmt.Println(err)
 	} else {
-		CUR_NUM ++
+		CUR_NUM++
 		fmt.Printf("当前获取图片数：%d\n", CUR_NUM)
 		if CUR_NUM == MAX_NUM {
 			fmt.Println("获取所有图片完成!")
@@ -279,4 +275,3 @@ func downLoad(url, fileName string) {
 		}
 	}
 }
-
